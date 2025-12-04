@@ -30,6 +30,9 @@ const TrackRow: React.FC<TrackRowProps> = ({ song, onUpdate, onUpdateMemo, onDel
   // Timer State
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
+  
+  // Ref to track start time for accurate delta calculation
+  const startTimeRef = useRef<number>(0);
   const timerIntervalRef = useRef<number | null>(null);
 
   // Sync local memo state if prop changes (e.g. on load)
@@ -40,15 +43,24 @@ const TrackRow: React.FC<TrackRowProps> = ({ song, onUpdate, onUpdateMemo, onDel
   // Timer Effect
   useEffect(() => {
     if (isRunning) {
+      // Calculate start time based on current seconds (to support pause/resume)
+      // Logic: Start Time = Now - Previously Elapsed Time
+      startTimeRef.current = Date.now() - (seconds * 1000);
+
       timerIntervalRef.current = window.setInterval(() => {
-        setSeconds(prev => prev + 1);
+        const now = Date.now();
+        const elapsed = Math.floor((now - startTimeRef.current) / 1000);
+        setSeconds(elapsed);
       }, 1000);
-    } else if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
+    } else {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
     }
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning]);
 
   const toggleTimer = () => setIsRunning(!isRunning);

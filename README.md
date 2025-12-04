@@ -6,7 +6,8 @@
 
 This contains everything you need to run your app locally.
 
-View your app https://piano-practice-tracker.netlify.app/
+View your app in AI Studio: https://ai.studio/apps/drive/1W0kitmdjXzIs5_nclFHlm_eZcn_HxCG9
+
 ## Run Locally
 
 **Prerequisites:**  Node.js
