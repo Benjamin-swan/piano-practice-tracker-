@@ -10,6 +10,9 @@ const App: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Metric Toggle State
+  const [isOverallVisible, setIsOverallVisible] = useState(false);
 
   // Load from LocalStorage
   useEffect(() => {
@@ -113,7 +116,19 @@ const App: React.FC = () => {
     });
   };
 
-  const totalPracticeSessions = songs.reduce((acc, song) => acc + song.practiceCount, 0);
+  // --- Metrics Calculation ---
+
+  const totalPracticeSessions = useMemo(() => 
+    songs.reduce((acc, song) => acc + song.practiceCount, 0), 
+  [songs]);
+
+  const todayPracticeSessions = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    return songs
+        .filter(song => song.date === todayStr)
+        .reduce((acc, song) => acc + song.practiceCount, 0);
+  }, [songs]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-gray-800 bg-gradient-to-br from-slate-50 to-slate-200">
@@ -123,13 +138,59 @@ const App: React.FC = () => {
          
          <div className="max-w-4xl mx-auto px-4 py-6">
             <div className="flex justify-between items-end">
-                <div>
+                {/* Left Side: Title - Remains static */}
+                <div className="flex-shrink-0">
                     <h1 className="text-3xl font-bold tracking-tight">Piano Tracker</h1>
                     <p className="text-gray-400 text-sm mt-1">Visualize your practice. Fill the bars.</p>
                 </div>
-                <div className="text-right hidden sm:block">
-                    <div className="text-2xl font-bold text-blue-400">{totalPracticeSessions}</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">Total Sessions</div>
+                
+                {/* Right Side: Metrics - Flex container for horizontal expansion */}
+                <div className="flex items-end justify-end">
+                    
+                    {/* Today's Units Block */}
+                    <div className="text-right z-10 transition-transform duration-500">
+                        <div className="text-3xl font-bold text-blue-400 leading-none mb-1">
+                            {todayPracticeSessions}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold select-none">
+                            <span>Today's Units</span>
+                            <button 
+                                onClick={() => setIsOverallVisible(!isOverallVisible)}
+                                className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white transition-colors focus:outline-none"
+                                title={isOverallVisible ? "Hide Overall Stats" : "Show Overall Stats"}
+                            >
+                                {/* CSS-based Chevron Icon */}
+                                {/* Right Arrow (>) when collapsed, Left Arrow (<) when expanded */}
+                                <div 
+                                    className={`
+                                        w-1.5 h-1.5 border-t-[1.5px] border-r-[1.5px] border-current 
+                                        transform transition-transform duration-300 ease-out
+                                        ${isOverallVisible ? 'rotate-[-135deg] translate-x-[2px]' : 'rotate-45 -translate-x-[2px]'}
+                                    `} 
+                                />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Overall Units Block - Horizontal Slide Expansion to the RIGHT */}
+                    <div 
+                        className={`
+                            overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]
+                            ${isOverallVisible ? 'max-w-[120px] opacity-100 ml-6 pl-6 border-l border-gray-700' : 'max-w-0 opacity-0 ml-0 pl-0 border-l-0 border-transparent'}
+                        `}
+                    >
+                        {/* Whitespace-nowrap ensures content doesn't wrap while expanding */}
+                        <div className="whitespace-nowrap text-right">
+                             <div className="text-3xl font-bold text-gray-400 leading-none mb-1">
+                                {totalPracticeSessions}
+                            </div>
+                            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+                                Overall Units
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
          </div>
