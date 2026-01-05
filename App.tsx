@@ -2,39 +2,102 @@ import React, { useState, useEffect, useMemo } from 'react';
 import TrackRow from './components/TrackRow';
 import AddTrackForm from './components/AddTrackForm';
 import PianoHeader from './components/PianoHeader';
-import { Song, FruitTheme } from './types';
-
-const STORAGE_KEY = 'piano_progress_tracker_v1';
+import LoginPage from './components/LoginPage';
+import { Song, FruitTheme, User } from './types';
 
 const App: React.FC = () => {
+  // --- Helper: Local Date String (YYYY-MM-DD) ---
+  // Fixes issue where "Today" changes at wrong time due to UTC
+  const getLocalYYYYMMDD = (d: Date = new Date()) => {
+    const offset = d.getTimezoneOffset() * 60000;
+    const localDate = new Date(d.getTime() - offset);
+    return localDate.toISOString().split('T')[0];
+  };
+
+  // Auth State
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
   const [songs, setSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Metric Toggle State
   const [isOverallVisible, setIsOverallVisible] = useState(false);
 
-  // Load from LocalStorage
+  // Dynamic Storage Key based on User
+  const storageKey = useMemo(() =>
+    currentUser ? `piano_tracker_data_${currentUser.id}` : null,
+    [currentUser]
+  );
+
+  // --- Session Persistence ---
   useEffect(() => {
-    const savedData = localStorage.getItem(STORAGE_KEY);
+    const savedUserStr = localStorage.getItem('piano_last_user');
+    if (savedUserStr) {
+      try {
+        const savedUser = JSON.parse(savedUserStr);
+        // Optional: Verify if user still exists in piano_users?
+        // For prototype speed, we trust the session or simple check
+        const allUsersStr = localStorage.getItem('piano_users');
+        const allUsers: User[] = allUsersStr ? JSON.parse(allUsersStr) : [];
+        const exists = allUsers.find(u => u.id === savedUser.id);
+
+        if (exists) {
+          setCurrentUser(exists);
+        } else {
+          localStorage.removeItem('piano_last_user');
+        }
+      } catch (e) {
+        console.error("Session parse error", e);
+        localStorage.removeItem('piano_last_user');
+      }
+    }
+  }, []);
+
+  const handleLogin = (user: User) => {
+    localStorage.setItem('piano_last_user', JSON.stringify(user));
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('piano_last_user');
+    setCurrentUser(null);
+  };
+
+  // Load from LocalStorage when User changes
+  useEffect(() => {
+    if (!storageKey) {
+      setSongs([]);
+      setLoaded(false);
+      return;
+    }
+
+    const savedData = localStorage.getItem(storageKey);
     if (savedData) {
       try {
         setSongs(JSON.parse(savedData));
       } catch (e) {
         console.error("Failed to parse songs", e);
+        setSongs([]);
       }
+    } else {
+      setSongs([]);
     }
     setLoaded(true);
-  }, []);
+  }, [storageKey]);
 
   // Save to LocalStorage
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(songs));
+    if (loaded && storageKey) {
+      localStorage.setItem(storageKey, JSON.stringify(songs));
     }
-  }, [songs, loaded]);
+  }, [songs, loaded, storageKey]);
 
   const handleAddSong = (title: string, date: string, theme: FruitTheme) => {
+    // If date is "today" coming from form, ensure we store it consistently
+    // But form usually passes YYYY-MM-DD directly. 
+    // If we were generating it here: const date = getLocalYYYYMMDD();
+
     const newSong: Song = {
       id: crypto.randomUUID(),
       title,
@@ -56,10 +119,10 @@ const App: React.FC = () => {
   };
 
   const handleUpdateMemo = (id: string, newMemo: string) => {
-    setSongs((prev) => 
-        prev.map((song) => 
-            song.id === id ? { ...song, memo: newMemo } : song
-        )
+    setSongs((prev) =>
+      prev.map((song) =>
+        song.id === id ? { ...song, memo: newMemo } : song
+      )
     );
   };
 
@@ -71,7 +134,7 @@ const App: React.FC = () => {
 
   const groupedSongs = useMemo(() => {
     // 1. Filter
-    const filtered = songs.filter(song => 
+    const filtered = songs.filter(song =>
       song.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -83,7 +146,7 @@ const App: React.FC = () => {
     });
 
     // 3. Sort Dates Descending
-    const sortedDates = Object.keys(groups).sort((a, b) => 
+    const sortedDates = Object.keys(groups).sort((a, b) =>
       new Date(b).getTime() - new Date(a).getTime()
     );
 
@@ -95,105 +158,118 @@ const App: React.FC = () => {
 
   const getDateLabel = (dateStr: string) => {
     const today = new Date();
-    const date = new Date(dateStr);
-    
-    // Reset times for accurate comparison
-    const todayStr = today.toISOString().split('T')[0];
-    
-    // Check Yesterday
-    const yesterday = new Date(today);
+    // Use local time for comparison
+    const todayStr = getLocalYYYYMMDD(today);
+
+    // Calculate yesterday in local time
+    const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = getLocalYYYYMMDD(yesterday);
 
     if (dateStr === todayStr) return 'Today';
     if (dateStr === yesterdayStr) return 'Yesterday';
-    
-    return date.toLocaleDateString(undefined, { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+
+    // Fallback UI format
+    return new Date(dateStr).toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
   // --- Metrics Calculation ---
 
-  const totalPracticeSessions = useMemo(() => 
-    songs.reduce((acc, song) => acc + song.practiceCount, 0), 
-  [songs]);
+  const totalPracticeSessions = useMemo(() =>
+    songs.reduce((acc, song) => acc + song.practiceCount, 0),
+    [songs]);
 
   const todayPracticeSessions = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalYYYYMMDD();
 
     return songs
-        .filter(song => song.date === todayStr)
-        .reduce((acc, song) => acc + song.practiceCount, 0);
+      .filter(song => song.date === todayStr)
+      .reduce((acc, song) => acc + song.practiceCount, 0);
   }, [songs]);
+
+  // --- Render Condition ---
+  if (!currentUser) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-gray-800 bg-gradient-to-br from-slate-50 to-slate-200">
       <header className="bg-gray-900 text-white relative z-20 shadow-md">
-         {/* Interactive Piano Header */}
-         <PianoHeader />
-         
-         <div className="max-w-4xl mx-auto px-4 py-6">
-            <div className="flex justify-between items-end">
-                {/* Left Side: Title - Remains static */}
-                <div className="flex-shrink-0">
-                    <h1 className="text-3xl font-bold tracking-tight">Piano Tracker</h1>
-                    <p className="text-gray-400 text-sm mt-1">Visualize your practice. Fill the bars.</p>
-                </div>
-                
-                {/* Right Side: Metrics - Flex container for horizontal expansion */}
-                <div className="flex items-end justify-end">
-                    
-                    {/* Today's Units Block */}
-                    <div className="text-right z-10 transition-transform duration-500">
-                        <div className="text-3xl font-bold text-blue-400 leading-none mb-1">
-                            {todayPracticeSessions}
-                        </div>
+        {/* Interactive Piano Header */}
+        <PianoHeader />
 
-                        <div className="flex items-center justify-end gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold select-none">
-                            <span>Today's Units</span>
-                            <button 
-                                onClick={() => setIsOverallVisible(!isOverallVisible)}
-                                className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white transition-colors focus:outline-none"
-                                title={isOverallVisible ? "Hide Overall Stats" : "Show Overall Stats"}
-                            >
-                                {/* CSS-based Chevron Icon */}
-                                {/* Right Arrow (>) when collapsed, Left Arrow (<) when expanded */}
-                                <div 
-                                    className={`
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <div className="flex justify-between items-end">
+            {/* Left Side: Title - Remains static */}
+            <div className="flex-shrink-0">
+              <h1 className="text-3xl font-bold tracking-tight">Piano Tracker</h1>
+              <div className="flex items-center gap-2 mt-1 text-gray-400 text-sm">
+                <span>Welcome, <span className="text-blue-400 font-semibold">{currentUser.username}</span></span>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={handleLogout}
+                  className="hover:text-white transition-colors underline decoration-dotted"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+
+            {/* Right Side: Metrics - Flex container for horizontal expansion */}
+            <div className="flex items-end justify-end">
+
+              {/* Today's Units Block */}
+              <div className="text-right z-10 transition-transform duration-500">
+                <div className="text-3xl font-bold text-blue-400 leading-none mb-1">
+                  {todayPracticeSessions}
+                </div>
+
+                <div className="flex items-center justify-end gap-2 text-xs text-gray-500 uppercase tracking-wider font-semibold select-none">
+                  <span>Today's Units</span>
+                  <button
+                    onClick={() => setIsOverallVisible(!isOverallVisible)}
+                    className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-white transition-colors focus:outline-none"
+                    title={isOverallVisible ? "Hide Overall Stats" : "Show Overall Stats"}
+                  >
+                    {/* CSS-based Chevron Icon */}
+                    {/* Right Arrow (>) when collapsed, Left Arrow (<) when expanded */}
+                    <div
+                      className={`
                                         w-1.5 h-1.5 border-t-[1.5px] border-r-[1.5px] border-current 
                                         transform transition-transform duration-300 ease-out
                                         ${isOverallVisible ? 'rotate-[-135deg] translate-x-[2px]' : 'rotate-45 -translate-x-[2px]'}
-                                    `} 
-                                />
-                            </button>
-                        </div>
-                    </div>
+                                    `}
+                    />
+                  </button>
+                </div>
+              </div>
 
-                    {/* Overall Units Block - Horizontal Slide Expansion to the RIGHT */}
-                    <div 
-                        className={`
+              {/* Overall Units Block - Horizontal Slide Expansion to the RIGHT */}
+              <div
+                className={`
                             overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)]
                             ${isOverallVisible ? 'max-w-[120px] opacity-100 ml-6 pl-6 border-l border-gray-700' : 'max-w-0 opacity-0 ml-0 pl-0 border-l-0 border-transparent'}
                         `}
-                    >
-                        {/* Whitespace-nowrap ensures content doesn't wrap while expanding */}
-                        <div className="whitespace-nowrap text-right">
-                             <div className="text-3xl font-bold text-gray-400 leading-none mb-1">
-                                {totalPracticeSessions}
-                            </div>
-                            <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
-                                Overall Units
-                            </div>
-                        </div>
-                    </div>
-
+              >
+                {/* Whitespace-nowrap ensures content doesn't wrap while expanding */}
+                <div className="whitespace-nowrap text-right">
+                  <div className="text-3xl font-bold text-gray-400 leading-none mb-1">
+                    {totalPracticeSessions}
+                  </div>
+                  <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+                    Overall Units
+                  </div>
                 </div>
+              </div>
+
             </div>
-         </div>
+          </div>
+        </div>
       </header>
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8 -mt-4 z-30">
@@ -214,44 +290,44 @@ const App: React.FC = () => {
         </div>
 
         <div className="space-y-8">
-            {groupedSongs.length === 0 && loaded ? (
-                <div className="text-center py-20 opacity-50">
-                    <div className="text-6xl mb-4">🎹</div>
-                    <p className="text-xl font-medium text-gray-500">
-                      {searchTerm ? 'No matches found.' : 'No songs yet.'}
-                    </p>
-                    {!searchTerm && <p className="text-gray-400">Add a track above to start your journey.</p>}
+          {groupedSongs.length === 0 && loaded ? (
+            <div className="text-center py-20 opacity-50">
+              <div className="text-6xl mb-4">🎹</div>
+              <p className="text-xl font-medium text-gray-500">
+                {searchTerm ? 'No matches found.' : 'No songs yet.'}
+              </p>
+              {!searchTerm && <p className="text-gray-400">Add a track above to start your journey.</p>}
+            </div>
+          ) : (
+            groupedSongs.map((group) => (
+              <div key={group.date} className="relative">
+                {/* Sticky Date Header */}
+                <div className="sticky top-0 z-10 py-2 mb-3 bg-gradient-to-r from-slate-100/95 to-slate-200/95 backdrop-blur-md border-b border-gray-200/50">
+                  <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider px-2">
+                    {getDateLabel(group.date)}
+                  </h2>
                 </div>
-            ) : (
-                groupedSongs.map((group) => (
-                    <div key={group.date} className="relative">
-                        {/* Sticky Date Header */}
-                        <div className="sticky top-0 z-10 py-2 mb-3 bg-gradient-to-r from-slate-100/95 to-slate-200/95 backdrop-blur-md border-b border-gray-200/50">
-                            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider px-2">
-                                {getDateLabel(group.date)}
-                            </h2>
-                        </div>
 
-                        <div className="space-y-4">
-                            {group.songs.map((song) => (
-                                <TrackRow
-                                    key={song.id}
-                                    song={song}
-                                    onUpdate={handleUpdateProgress}
-                                    onUpdateMemo={handleUpdateMemo}
-                                    onDelete={handleDeleteSong}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                ))
-            )}
+                <div className="space-y-4">
+                  {group.songs.map((song) => (
+                    <TrackRow
+                      key={song.id}
+                      song={song}
+                      onUpdate={handleUpdateProgress}
+                      onUpdateMemo={handleUpdateMemo}
+                      onDelete={handleDeleteSong}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </main>
 
       <footer className="border-t border-gray-200/50 py-8 mt-12 backdrop-blur-sm">
         <div className="max-w-4xl mx-auto px-4 text-center text-gray-400 text-sm">
-            <p>© {new Date().getFullYear()} Piano Progress Tracker. Keep practicing! 🎵</p>
+          <p>© {new Date().getFullYear()} Piano Progress Tracker. Keep practicing! 🎵</p>
         </div>
       </footer>
     </div>
