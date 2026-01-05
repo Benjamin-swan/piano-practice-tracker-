@@ -210,6 +210,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                     </button>
                 </div>
             </div>
+
         </div>
     );
 };
