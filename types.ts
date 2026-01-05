@@ -22,3 +22,9 @@ export interface User {
   username: string; // Display name
   password: string; // 4-digit code
 }
+
+export interface Admin {
+  id: string; // unique identifier
+  username: string; // Display name
+  password: string; // Admin password
+}

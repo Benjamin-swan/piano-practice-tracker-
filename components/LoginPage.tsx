@@ -209,6 +209,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                         {isLoginMode ? "Don't have an account? Sign Up" : "Already have an account? Login"}
                     </button>
                 </div>
+
+                {/* Admin Portal Link */}
+                <div className="mt-4 pt-4 border-t border-gray-100 text-center">
+                    <a
+                        href="/admin"
+                        className="text-xs text-gray-400 hover:text-blue-500 transition-colors inline-flex items-center gap-1"
+                    >
+                        🔐 Admin Portal
+                    </a>
+                </div>
             </div>
 
         </div>
