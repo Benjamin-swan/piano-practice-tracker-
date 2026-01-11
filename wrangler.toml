@@ -1,0 +1,6 @@
+name = "piano-practice-tracker"
+compatibility_date = "2024-09-23"
+
+# Cloudflare Pages Static Assets deployment configuration
+[assets]
+directory = "./dist"
