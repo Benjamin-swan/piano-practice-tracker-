@@ -4,14 +4,12 @@ A beautiful and intuitive web application for tracking your piano practice sessi
 
 ## Features
 
-- ✨ **User Authentication**: Sign up and log in to keep your practice data private
 - 📊 **Practice Tracking**: Track practice sessions for each song with customizable counters
 - 📝 **Notes & Memos**: Add notes to each practice session
 - 🎨 **Theme Customization**: Choose from various fruit-themed colors for your tracks
 - 📅 **Date Grouping**: Automatically groups sessions by "Today", "Yesterday", and other dates
 - 🔍 **Search**: Quickly find your songs with the search feature
 - 💾 **Auto-save**: All data is automatically saved to localStorage
-- 🔐 **Session Persistence**: Stay logged in across browser sessions
 
 ## Run Locally
 

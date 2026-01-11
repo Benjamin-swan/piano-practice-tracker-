@@ -16,15 +16,3 @@ export const THEMES: { label: string; value: FruitTheme }[] = [
   { label: 'Grape', value: '🍇' },
   { label: 'Strawberry', value: '🍓' },
 ];
-
-export interface User {
-  id: string; // unique identifier (lowercase + numbers)
-  username: string; // Display name
-  password: string; // 4-digit code
-}
-
-export interface Admin {
-  id: string; // unique identifier
-  username: string; // Display name
-  password: string; // Admin password
-}

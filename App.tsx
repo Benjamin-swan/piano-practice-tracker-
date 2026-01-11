@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import TrackRow from './components/TrackRow';
 import AddTrackForm from './components/AddTrackForm';
 import PianoHeader from './components/PianoHeader';
-import LoginPage from './components/LoginPage';
-import { Song, FruitTheme, User } from './types';
+import { Song, FruitTheme } from './types';
 
 const App: React.FC = () => {
   // --- Helper: Local Date String (YYYY-MM-DD) ---
@@ -14,9 +13,6 @@ const App: React.FC = () => {
     return localDate.toISOString().split('T')[0];
   };
 
-  // Auth State
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-
   const [songs, setSongs] = useState<Song[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -24,54 +20,11 @@ const App: React.FC = () => {
   // Metric Toggle State
   const [isOverallVisible, setIsOverallVisible] = useState(false);
 
-  // Dynamic Storage Key based on User
-  const storageKey = useMemo(() =>
-    currentUser ? `piano_tracker_data_${currentUser.id}` : null,
-    [currentUser]
-  );
+  // Default Storage Key for single user mode
+  const storageKey = 'piano_tracker_data_default';
 
-  // --- Session Persistence ---
+  // Load from LocalStorage
   useEffect(() => {
-    const savedUserStr = localStorage.getItem('piano_last_user');
-    if (savedUserStr) {
-      try {
-        const savedUser = JSON.parse(savedUserStr);
-        // Optional: Verify if user still exists in piano_users?
-        // For prototype speed, we trust the session or simple check
-        const allUsersStr = localStorage.getItem('piano_users');
-        const allUsers: User[] = allUsersStr ? JSON.parse(allUsersStr) : [];
-        const exists = allUsers.find(u => u.id === savedUser.id);
-
-        if (exists) {
-          setCurrentUser(exists);
-        } else {
-          localStorage.removeItem('piano_last_user');
-        }
-      } catch (e) {
-        console.error("Session parse error", e);
-        localStorage.removeItem('piano_last_user');
-      }
-    }
-  }, []);
-
-  const handleLogin = (user: User) => {
-    localStorage.setItem('piano_last_user', JSON.stringify(user));
-    setCurrentUser(user);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('piano_last_user');
-    setCurrentUser(null);
-  };
-
-  // Load from LocalStorage when User changes
-  useEffect(() => {
-    if (!storageKey) {
-      setSongs([]);
-      setLoaded(false);
-      return;
-    }
-
     const savedData = localStorage.getItem(storageKey);
     if (savedData) {
       try {
@@ -84,14 +37,14 @@ const App: React.FC = () => {
       setSongs([]);
     }
     setLoaded(true);
-  }, [storageKey]);
+  }, []);
 
   // Save to LocalStorage
   useEffect(() => {
-    if (loaded && storageKey) {
+    if (loaded) {
       localStorage.setItem(storageKey, JSON.stringify(songs));
     }
-  }, [songs, loaded, storageKey]);
+  }, [songs, loaded]);
 
   const handleAddSong = (title: string, date: string, theme: FruitTheme) => {
     // If date is "today" coming from form, ensure we store it consistently
@@ -192,11 +145,6 @@ const App: React.FC = () => {
       .reduce((acc, song) => acc + song.practiceCount, 0);
   }, [songs]);
 
-  // --- Render Condition ---
-  if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
   return (
     <div className="min-h-screen flex flex-col font-sans text-gray-800 bg-gradient-to-br from-slate-50 to-slate-200">
       <header className="bg-gray-900 text-white relative z-20 shadow-md">
@@ -209,14 +157,7 @@ const App: React.FC = () => {
             <div className="flex-shrink-0">
               <h1 className="text-3xl font-bold tracking-tight">Piano Tracker</h1>
               <div className="flex items-center gap-2 mt-1 text-gray-400 text-sm">
-                <span>Welcome, <span className="text-blue-400 font-semibold">{currentUser.username}</span></span>
-                <span className="text-gray-600">|</span>
-                <button
-                  onClick={handleLogout}
-                  className="hover:text-white transition-colors underline decoration-dotted"
-                >
-                  Logout
-                </button>
+                <span>Personal Progress</span>
               </div>
             </div>
 
